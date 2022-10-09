@@ -5,6 +5,7 @@ import getopt
 import os
 import serial
 import struct
+import csv
 from math import log
 
 def usage(utyp, *msg):
@@ -63,6 +64,7 @@ class Global:
 
     def __init__(self):
         self.vflag = 0
+        self.csv = None
         return
 
     def send(self,q):
@@ -72,6 +74,9 @@ class Global:
     def receive(self):
         d = self.s.read(13)
         return d
+
+    def frnd(self,f):
+        return '%.2f' % (f,)
 
     def doit(self,args):
         fout = sys.stdout
@@ -87,6 +92,13 @@ class Global:
 
         fout.write('%s    %5d entries\n' % (bhex(d),n_entries))
         
+        if self.csv:
+            csvf = open(self.csv, 'w')
+            csvh = csv.writer(csvf,quoting=csv.QUOTE_MINIMAL)
+            csvh.writerow(['Entry','Wavelength','Power','Ref','Frequency'])
+        else:
+            csvh = None
+
         for i in range(n_entries):
             q1 = query(read_at = i*0x10)
             self.send(q1)
@@ -100,21 +112,29 @@ class Global:
             x2 = log(x2,10)*10
             x1b = x1-x2
             # x2 = 15.5*x2-9.87
+            wl = self.wl_decode(d[9])
+            fr = self.cw_decode(d[10])
             fout.write('%4d %s    %s  %4d  %9s %7.2f %7.2f %7.2f %s\n' %
                            (i,bhex(q1[:5]),bhex(d),
-                            i+1,self.wl_decode(d[9]),
-                            x1,x1b,x2,self.cw_decode(d[10])))
+                            i+1,wl,
+                            x1,x1b,x2,fr))
             fout.flush()
-
+            if csvh:
+                csvh.writerow([i+1,wl,self.frnd(x1b),self.frnd(x2),fr])
+                csvf.flush()
+                
+        if csvh:
+            csvf.close()
         return
 
 def main(argv):
     gp = Global()
     try:
         opts, args = getopt.getopt(argv[1:],
-                                   'hv',
+                                   'hvc:',
                                    ['help',
                                     'verbose',
+                                    'csv=',
                                     ])
     except getopt.error as msg:
         usage(1, msg)
@@ -122,6 +142,8 @@ def main(argv):
     for opt, arg in opts:
         if opt in ('-h', '--help'):
             usage(0)
+        elif opt in ('-c', '--csv'):
+            gp.csv = arg
         elif opt in ('-v', '--verbose'):
             gp.vflag += 1
 
