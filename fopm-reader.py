@@ -6,6 +6,8 @@ import os
 import serial
 import struct
 import csv
+import json
+import time
 from itertools import count
 from math import log
 try:
@@ -71,6 +73,7 @@ class Global:
         self.vflag = 0
         self.csv = None
         self.xls = None
+        self.dumpname = None
         return
 
     def send(self,q):
@@ -84,15 +87,40 @@ class Global:
     def frnd(self,f):
         return '%.2f' % (f,)
 
+    def do_dump(self):
+        if self.dump:
+            data = json.dumps(self.dump_d)
+            self.dump.seek(0,0)
+            self.dump.truncate(0)
+            self.dump.write(data)
+            self.dump.flush()
+                    
+    def dump_append(self,q,r):
+        if self.dump_d:
+            self.dump_d['a'].append((time.time(),q.hex(),r.hex()))
+            self.do_dump()
+            
     def doit(self,args):
         fout = sys.stdout
         
         port = args.pop(0)
         self.s = serial.Serial(port=port,baudrate=9600)
 
+
+        if self.dumpname:
+            self.dump = open(self.dumpname, 'w')
+            self.dump_d = dict()
+            dump_d = self.dump_d
+            dump_d['a'] = []
+        else:
+            self.dump = None
+
         q1 = query()
         self.send(q1)
         d = self.receive()
+
+        if self.dump:
+            self.dump_append(q1,d)
 
         n_entries = struct.unpack('<H',d[5:7])[0]
 
@@ -139,15 +167,18 @@ class Global:
             q1 = query(read_at = i*0x10)
             self.send(q1)
             d1 = self.receive()
+            if self.dump:
+                self.dump_append(q1,d1)
             q1 = query(read_at = i*0x10+0x08)
             self.send(q1)
             d2 = self.receive()
+            if self.dump:
+                self.dump_append(q1,d2)
             d = d1[5:]+d2[5:]
             x1,x2 = struct.unpack('<ff',d[0:8])
             x1 = log(x1,10)*10
             x2 = log(x2,10)*10
             x1b = x1-x2
-            # x2 = 15.5*x2-9.87
             wl = self.wl_decode(d[9])
             fr = self.cw_decode(d[10])
             fout.write(fmt1 % {
@@ -179,11 +210,12 @@ def main(argv):
     gp = Global()
     try:
         opts, args = getopt.getopt(argv[1:],
-                                   'hvc:X:',
+                                   'hvc:X:D:',
                                    ['help',
                                     'verbose',
                                     'csv=',
                                     'xls=',
+                                    'dump=',
                                     ])
     except getopt.error as msg:
         usage(1, msg)
@@ -195,6 +227,8 @@ def main(argv):
             gp.csv = arg
         elif opt in ('-X', '--xls'):
             gp.xls = arg
+        elif opt in ('-D', '--dump'):
+            gp.dumpname = arg
         elif opt in ('-v', '--verbose'):
             gp.vflag += 1
 
