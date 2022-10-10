@@ -151,7 +151,6 @@ class Global:
             wl = self.wl_decode(d[9])
             fr = self.cw_decode(d[10])
             fout.write(fmt1 % {
-                'col': col,
                 'q': bhex(q1[:5]),
                 'r': bhex(d),
                 'entry': i+1,
