@@ -22,11 +22,12 @@ def usage(utyp, *msg):
     sys.exit(1)
 
 def query(read_at = None):
-    if read_at is None:
+    '''Generate a request command'''
+    if read_at is None:                 # Info of the memory contents
         b = bytearray(13)
         b[0] = 0xaa
         b[1] = 0x22
-    else:
+    else:                               # Memory chunk at read_at
         b = bytearray(13)
         b[0] = 0xaa
         b[1] = 0x20
@@ -40,7 +41,7 @@ def bhex(b):
     return ' ' .join(s[i:i+2] for i in range(0,len(s),2))
 
 class Global:
-    wl_decode0 = {
+    wl_decode0 = {                      # Wavelengths
         0x00: 850,
         0x01: 1300,
         0x02: 1310,
@@ -48,7 +49,7 @@ class Global:
         0x04: 1550,
         0x05: 1625,
         }
-    cw_decode0 = {
+    cw_decode0 = {                      # Modulation frequencies
         0x00: 'CW',
         0x01: '270Hz',
         0x02: '1kHz',
@@ -56,6 +57,7 @@ class Global:
         }
                      
     def wl_decode(self,x):
+        '''Decode wavelength value'''
         r = self.wl_decode0.get(x)
         if not r:
             r = '?? <%d>' % (x,)
@@ -64,6 +66,7 @@ class Global:
         return r
 
     def cw_decode(self,x):
+        '''Decode modulation value'''
         r = self.cw_decode0.get(x)
         if not r:
             r = '?? <%d>' % (x,)
@@ -131,14 +134,14 @@ class Global:
         
         hdrfields = ('Entry','Wavelength','Power','Ref','Frequency')
 
-        if self.csv:
+        if self.csv:                    # If requested save as CSV
             csvf = open(self.csv, 'w')
             csvh = csv.writer(csvf,quoting=csv.QUOTE_MINIMAL)
             csvh.writerow(list(hdrfields))
         else:
             csvh = None
 
-        if self.xls:
+        if self.xls:                    # If requested save as XLS
             if not xlsxwriter:
                 raise ImportError('xlsxwriter module needed with --xls option')
             workbook = xlsxwriter.Workbook(self.xls)
@@ -175,8 +178,8 @@ class Global:
             if self.dump:
                 self.dump_append(q1,d2)
             d = d1[5:]+d2[5:]
-            x1,x2 = struct.unpack('<ff',d[0:8])
-            x1 = log(x1,10)*10
+            x1,x2 = struct.unpack('<ff',d[0:8]) # Data is as 32-bit floats
+            x1 = log(x1,10)*10                  # Convert to dBs
             x2 = log(x2,10)*10
             x1b = x1-x2
             wl = self.wl_decode(d[9])
